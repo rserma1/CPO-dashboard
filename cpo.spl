@@ -1,0 +1,236 @@
+<form version="1.1" theme="dark">
+  <label>RDMP CPO Field Completion Tracker</label>
+  <description>Navigate to Jira Dashboard to complete: https://splunk.atlassian.net/jira/dashboards/50791</description>
+  <!-- BASE SEARCH -->
+  <search id="completion_base">
+    <query>
+      <![CDATA[
+      | inputlookup rdmp_cpo_malini.csv
+      | eval updated_epoch=strptime(Updated, "%Y-%m-%dT%H:%M:%S.%3N%z")
+      | eventstats max(updated_epoch) as recent by Key
+      | where updated_epoch=recent
+      | dedup Key
+      | makemv Initiative_Status delim="|"
+      | makemv ddate_history delim="|"
+      `pretty_dates(ddate)`
+      | eval ddate_epoch = strptime(ddate, "%Y-%m-%d")
+      | where ddate_epoch > strptime("2025-05-01", "%Y-%m-%d")
+      | eval Initiative_Status = mvindex(Initiative_Status, 0)
+      | where Status IN ("New", "In Progress", "Backlog")
+      | fillnull Launch_Phase Launch_Tier value="None"
+      | search $launch_tier_filter$
+      | search $pm_filter$
+      | search $product_area_filter$
+      | eval Completion_Status=case(
+          isnull('Target Customer Segmentation') OR 'Target Customer Segmentation'="", "Pending",
+          isnull('Deliverable External Name') OR 'Deliverable External Name'="", "Pending",
+          isnull('Deliverable External Description') OR 'Deliverable External Description'="", "Pending",
+          isnull('Partner Value') OR 'Partner Value'="", "Pending",
+          isnull('Customer Value-Cisco') OR 'Customer Value-Cisco'="", "Pending",
+          isnull('Key Customer Benefit') OR 'Key Customer Benefit'="", "Pending",
+          isnull('Competition') OR 'Competition'="", "Pending",
+          isnull('Competitive Product(s)') OR 'Competitive Product(s)'="", "Pending",
+          isnull('Competitive Impact') OR 'Competitive Impact'="", "Pending",
+          isnull('Market Impact') OR 'Market Impact'="", "Pending",
+          isnull('Event(s)') OR 'Event(s)'="", "Pending",
+          isnull('Market Access Geo') OR 'Market Access Geo'="", "Pending",
+          isnull('Market Access Country') OR 'Market Access Country'="", "Pending",
+          true(), "Complete"
+      )
+      | search $completion_status_filter$
+
+      | eval Missing_Fields=mvappend(
+          if(isnull('Target Customer Segmentation') OR 'Target Customer Segmentation'="", "Target Customer Segmentation", null()),
+          if(isnull('Deliverable External Name') OR 'Deliverable External Name'="", "Deliverable External Name", null()),
+          if(isnull('Deliverable External Description') OR 'Deliverable External Description'="", "Deliverable External Description", null()),
+          if(isnull('Partner Value') OR 'Partner Value'="", "Partner Value", null()),
+          if(isnull('Customer Value-Cisco') OR 'Customer Value-Cisco'="", "Customer Value-Cisco", null()),
+          if(isnull('Key Customer Benefit') OR 'Key Customer Benefit'="", "Key Customer Benefit", null()),
+          if(isnull('Competition') OR 'Competition'="", "Competition", null()),
+          if(isnull('Competitive Product(s)') OR 'Competitive Product(s)'="", "Competitive Product(s)", null()),
+          if(isnull('Competitive Impact') OR 'Competitive Impact'="", "Competitive Impact", null()),
+          if(isnull('Market Impact') OR 'Market Impact'="", "Market Impact", null()),
+          if(isnull('Event(s)') OR 'Event(s)'="", "Event(s)", null()),
+          if(isnull('Market Access Geo') OR 'Market Access Geo'="", "Market Access Geo", null()),
+          if(isnull('Market Access Country') OR 'Market Access Country'="", "Market Access Country", null())
+          
+      )
+      | eval Missing_Fields=mvjoin(Missing_Fields, ", ")
+      | eval PM=trim(PM), Product_Area=trim(Product_Area)
+      ]]>
+    </query>
+  </search>
+  <!-- FILTERS -->
+  <!-- PANELS -->
+  <fieldset submitButton="false" autoRun="true">
+    <input type="multiselect" token="pm_filter" searchWhenChanged="true">
+      <label>Product Manager</label>
+      <fieldForLabel>PM</fieldForLabel>
+      <fieldForValue>PM</fieldForValue>
+      <search>
+        <query>
+   <!--   | inputlookup rdmp_cpo_test.csv
+      | eval PM=trim(PM)
+      | dedup PM
+      | sort PM
+      | fields PM -->
+      | inputlookup rdmp_cpo_malini.csv
+      | eval updated_epoch=strptime(Updated, "%Y-%m-%dT%H:%M:%S.%3N%z")
+      | eventstats max(updated_epoch) as recent by Key
+      | where updated_epoch=recent
+      | dedup Key
+      | makemv Initiative_Status delim="|"
+      | makemv ddate_history delim="|"
+      `pretty_dates(ddate)`
+      | eval ddate_epoch = strptime(ddate, "%Y-%m-%d")
+      | where ddate_epoch &gt; strptime("2025-05-01", "%Y-%m-%d")
+      | eval PM=trim(PM)
+      | dedup PM
+      | sort PM
+      | fields PM
+    </query>
+      </search>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <delimiter>,</delimiter>
+      <prefix>PM IN (</prefix>
+      <suffix>)</suffix>
+      <valuePrefix>"</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+    </input>
+    <input type="multiselect" token="product_area_filter" searchWhenChanged="true">
+      <label>Product Area</label>
+      <fieldForLabel>Product_Area</fieldForLabel>
+      <fieldForValue>Product_Area</fieldForValue>
+      <search>
+        <query>
+      | inputlookup rdmp_cpo_malini.csv
+      | eval Product_Area=trim(Product_Area)
+      | dedup Product_Area
+      | sort Product_Area
+      | fields Product_Area
+    </query>
+      </search>
+      <choice value="*">All</choice>
+      <default>*</default>
+      <delimiter>,</delimiter>
+      <prefix>Product_Area IN (</prefix>
+      <suffix>)</suffix>
+      <valuePrefix>"</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+    </input>
+    <input type="multiselect" token="completion_status_filter" searchWhenChanged="true">
+      <label>Update Status</label>
+      <choice value="Pending">Pending</choice>
+      <choice value="Complete">Complete</choice>
+      <default>Pending,Complete</default>
+      <delimiter>,</delimiter>
+      <prefix>Completion_Status IN (</prefix>
+      <suffix>)</suffix>
+      <valuePrefix>"</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+    </input>
+    <input type="multiselect" token="launch_tier_filter" searchWhenChanged="true" depends="$never_show$">
+      <label>Launch Tier</label>
+      <choice value="Tier 1">Tier 1</choice>
+      <choice value="Tier 2">Tier 2</choice>
+      <default>Tier 1,Tier 2</default>
+      <delimiter>,</delimiter>
+      <prefix>Launch_Tier IN (</prefix>
+      <suffix>)</suffix>
+      <valuePrefix>"</valuePrefix>
+      <valueSuffix>"</valueSuffix>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>RDMP CPO Fields Completion</title>
+      <chart>
+        <title>Completion Status</title>
+        <search base="completion_base">
+          <query>
+            <![CDATA[
+            | stats count by Completion_Status
+            | eventstats sum(count) as total
+            | eval percent=round((count/total)*100, 1)
+            | eval label = Completion_Status . " (" . percent . "%)"
+            ]]>
+          </query>
+        </search>
+        <option name="charting.chart">pie</option>
+        <option name="charting.legend.placement">right</option>
+        <option name="height">250</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Completion Status Breakdown</title>
+      <table>
+        <search base="completion_base">
+          <query>
+            <![CDATA[
+            | stats count by Completion_Status
+            | eventstats sum(count) as total
+            | eval Percent=round((count/total)*100, 1) . "%"
+            | rename count as Count
+            | table Completion_Status, Count, Percent
+            ]]>
+          </query>
+        </search>
+        <option name="count">10</option>
+        <format type="color" field="Completion_Status">
+          <colorPalette type="minMidMax" maxColor="#1182F3" minColor="#FFFFFF"></colorPalette>
+          <scale type="minMidMax"></scale>
+        </format>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>PM Completion Summary</title>
+      <table>
+        <search base="completion_base">
+          <query>
+            <![CDATA[
+            | eval Completion_Status=trim(Completion_Status)
+            | stats 
+                count(eval(Completion_Status=="Complete")) as Completed, 
+                count(eval(Completion_Status=="Pending")) as Pending,
+                values(eval(if(Completion_Status=="Pending", Key, null()))) as "RDMPs to Update"
+                values(eval(if(Completion_Status=="Complete", Key, null()))) as "Completed RDMPs"
+                by PM
+            | eval "RDMPs to Update" = mvjoin('RDMPs to Update', ", ")
+            | eval "Completed RDMPs" = mvjoin('Completed RDMPs', ", ")
+            | table PM Completed "Completed RDMPs" Pending "RDMPs to Update"
+            ]]>
+          </query>
+        </search>
+        <option name="count">50</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Pending RDMPs with Missing Fields</title>
+      <table>
+        <search base="completion_base">
+          <query>
+            <![CDATA[
+            | where Completion_Status="Pending"
+            | table Key, Completion_Status, Missing_Fields, url
+            ]]>
+          </query>
+        </search>
+        <drilldown>
+          <condition field="url">
+            <link target="_blank">$row.url|n$</link>
+          </condition>
+        </drilldown>
+        <option name="count">50</option>
+        <option name="wrap">true</option>
+      </table>
+    </panel>
+  </row>
+</form>
