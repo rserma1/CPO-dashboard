@@ -28,6 +28,8 @@ This Splunk dashboard provides a centralized view to **track the completeness** 
 - Filters initiatives where:
   - `ddate > 2025-05-01`
   - `Status` is `"New"`, `"In Progress"`, or `"Backlog"`
+  - `Issue Type` = `"CUstomer Launch Initiative"`
+
 - Fills nulls in `Launch_Phase` and `Launch_Tier` with `"None"`
 - Filters using user-selected filters via tokens:
   - `$pm_filter$`, `$product_area_filter$`, `$completion_status_filter$`, `$launch_tier_filter$`
